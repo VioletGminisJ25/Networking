@@ -126,7 +126,7 @@ namespace ShiftServer
         private void cliente(Object sClient)
         {
             Socket socketCliente = (Socket)sClient;
-            IPEndPoint clienteEndPoint = (IPEndPoint)socketCliente.RemoteEndPoint;
+            //IPEndPoint clienteEndPoint = (IPEndPoint)socketCliente.RemoteEndPoint;
             using (NetworkStream ns = new NetworkStream(socketCliente))
             using (StreamReader sr = new StreamReader(ns))
             using (StreamWriter sw = new StreamWriter(ns))
@@ -153,18 +153,22 @@ namespace ShiftServer
                         }
                         else
                         {
-                            int pin = this.ReadPin(Environment.GetEnvironmentVariable("userprofile") + "/pin.bin");
-                            if (pin == -1)
-                            {
-                                pin = 1234;
-                            }
                             sw.WriteLine("Introduce PIN: ");
                             sw.Flush();
                             Int32.TryParse(sr.ReadLine(), out int pinIntroducido);
-                            if (pinIntroducido == pin)
+                            int pin;
+                            lock (l2)
                             {
-                                valid = true;
-                                isAdmin = true;
+                                pin = this.ReadPin(Environment.GetEnvironmentVariable("userprofile") + "/pin.bin");
+                                if (pin == -1)
+                                {
+                                    pin = 1234;
+                                }
+                                if (pinIntroducido == pin)
+                                {
+                                    valid = true;
+                                    isAdmin = true;
+                                }
                             }
                         }
                     }
@@ -221,7 +225,7 @@ namespace ShiftServer
                                         break;
 
 
-                                    case string aux when comando.StartsWith("del ") && isAdmin:
+                                    case string _ when comando.StartsWith("del ") && isAdmin:
                                         lock (l)
                                         {
                                             bool deleted = false;
@@ -244,15 +248,16 @@ namespace ShiftServer
                                             }
                                         }
                                         break;
-                                    case string aux when comando.StartsWith("chpin ") && isAdmin:
-                                        lock (l2)
+                                    case string _ when comando.StartsWith("chpin ") && isAdmin:
+
+                                        string[] com2 = comando.Split(' ');
+                                        if (com2.Length == 2)
                                         {
-                                            string[] com2 = comando.Split(' ');
-                                            if (com2.Length == 2)
+                                            if (Int32.TryParse(com2[1], out int pin))
                                             {
-                                                if (Int32.TryParse(com2[1], out int pin))
+                                                if (pin.ToString().Length >= 4)
                                                 {
-                                                    if (pin.ToString().Length >= 4)
+                                                    lock (l2)
                                                     {
                                                         try
                                                         {
@@ -268,14 +273,15 @@ namespace ShiftServer
                                                             sw.WriteLine("Ha habido un error guardando el pin");
                                                         }
                                                     }
-                                                    else
-                                                    {
-                                                        sw.WriteLine("El pin debe se de al menos 4 digitos");
-                                                    }
+                                                }
+                                                else
+                                                {
+                                                    sw.WriteLine("El pin debe se de al menos 4 digitos");
                                                 }
                                             }
-                                            sw.Flush();
                                         }
+                                        sw.Flush();
+
                                         break;
                                     case "exit" when isAdmin:
                                         isAdmin = false;
